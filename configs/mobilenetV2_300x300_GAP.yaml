@@ -1,0 +1,15 @@
+## Feature Extractor
+feature_extractor: agg
+matching_network: fcn
+
+pretrained_fe_path: cifar100vgg.h5
+
+#Training
+optimizer: sgd
+learning_rate: 0.0001
+
+## Data
+dataset: coco100
+
+## Checkpoint is appended by the details of the experiments such as feat_extractor, img_size and loss etc.
+checkpoint_path: tmp\
