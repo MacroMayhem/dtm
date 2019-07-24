@@ -1,23 +1,23 @@
 import keras
 import keras.backend as K
 from keras.preprocessing import image
-from utils.small_fcns import FCN
+from utils.small_fcns import IndicatorNN
 from PIL import Image
 import numpy as np
 from keras.datasets import cifar100
 import matplotlib.pyplot as plt
-from cifarGenerator import CifarGenerator
+from cifarGenerator import CifarFeatureGenerator
 import itertools
 
+train_generator = CifarFeatureGenerator(mode='train')
+val_generator = CifarFeatureGenerator(mode='test')
+
 try:
-    fcn = keras.models.load_model('cifar_model.h5')
+    fcn = keras.models.load_model('feat_cifar_model.h5')
 except:
-    fcn = FCN(num_channels=3).load()
+    fcn = IndicatorNN(num_channels=3).load()
 
-train_generator = CifarGenerator(mode='train')
-val_generator = CifarGenerator(mode='test')
-
-save_callback = keras.callbacks.ModelCheckpoint('cifar_model.h5', monitor='loss', verbose=1, save_best_only=True, mode='min')
+save_callback = keras.callbacks.ModelCheckpoint('feat_cifar_model.h5', monitor='loss', verbose=1, save_best_only=True, mode='min')
 tb_callback = keras.callbacks.TensorBoard(log_dir='./logs/', histogram_freq=0, write_graph=True, write_images=False)
 history = fcn.fit_generator(generator=train_generator, validation_data=val_generator, epochs=2, callbacks=[save_callback, tb_callback])
 

@@ -79,14 +79,16 @@ class CifarFeatureGenerator(keras.utils.Sequence):
         return int(self.num_samples/self.batch_size)
 
     def get_pretrained_model(self, num_channels=3):
-        mv2 = keras.applications.mobilenet.MobileNet(alpha=1.0, include_top=False, weights='imagenet')
+        mv2 = keras.applications.mobilenet.MobileNet(alpha=1.0, include_top=False, weights='imagenet', pooling=None)
         model = Model(input=Input(shape=(None, None, num_channels)), output=mv2.output)
         return model
 
     def __init__(self, mode='train', batch_size=128):
         self.model = self.get_pretrained_model(num_channels=3)
+        self.channels = self.model.output.shape[-1]
         self.SIZE = 16
         self.batch_size = batch_size
+
         if mode == 'train':
             (data, _), ( _, _) = cifar100.load_data()
         else:
@@ -103,7 +105,7 @@ class CifarFeatureGenerator(keras.utils.Sequence):
 
         ps = np.zeros(shape=(self.batch_size, self.SIZE, self.SIZE, 3))
         ts = np.zeros(shape=(self.batch_size, self.SIZE, self.SIZE, 3))
-        ys = np.zeros(shape=(self.batch_size, self.SIZE, self.SIZE, 1))
+        ys = np.zeros(shape=(self.batch_size, 1))
 
         for sample in range(self.batch_size):
             r_id = np.random.randint(0, self.SIZE*(n_rows-1))
@@ -118,9 +120,9 @@ class CifarFeatureGenerator(keras.utils.Sequence):
             p = data[r_ind][r_id:r_id+self.SIZE, c_id:c_id+self.SIZE, :]
             if r_ind == sample:
                 self.labels[sample+index] = [p, t, 1]
-                y = np.ones(shape=(self.SIZE, self.SIZE, 1))
+                y = 1
             else:
-                y = np.zeros(shape=(self.SIZE, self.SIZE, 1))
+                y = 0
                 self.labels[sample+index] = [p, t, 0]
 
             ps[sample, ] = p
