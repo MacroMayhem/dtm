@@ -1,6 +1,6 @@
 from keras.models import Model
-from keras.layers import Input, Deconv2D, Concatenate
-from keras.layers import Conv2D, BatchNormalization
+from keras.layers import Input, Deconv2D, Concatenate, GlobalAveragePooling2D
+from keras.layers import Conv2D, BatchNormalization, Dense
 from keras import optimizers
 from keras.optimizers import SGD
 
@@ -38,5 +38,28 @@ class FCN:
 
         return model
 
+
+class IndicatorNN:
+    def __init__(self, num_channels):
+        self.model = None
+        self.num_channels = num_channels
+        self.load()
+
+    def load(self):
+        input_parent = Input(shape=(None, None, None), name='parent')
+        input_template = Input(shape=(None, None, None), name='template')
+        g_inp = GlobalAveragePooling2D()(input_parent)
+        g_tmp = GlobalAveragePooling2D()(input_template)
+        x = Dense(units=32, activation='relu')([g_inp, g_tmp])
+        x = BatchNormalization()(x)
+        x = Dense(units=8, activation='relu')(x)
+        x = BatchNormalization()(x)
+        x = Dense(units=2, activation='relu')(x)
+        matched_template = Dense(units=1, activation='sigmoid', padding='same')(x)
+        sgd = SGD(lr=0.00001, momentum=0.9)
+        model = Model(inputs=[input_parent, input_template], outputs=matched_template)
+        model.compile(loss='binary_crossentropy', optimizer=sgd)
+
+        return model
 
 
