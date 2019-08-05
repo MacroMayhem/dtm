@@ -5,15 +5,14 @@ from keras import optimizers
 from keras.optimizers import SGD
 
 class FCN:
-    def __init__(self, num_channels=128):
-        self.model = None
+    def __init__(self, num_channels=1024):
         self.num_channels = num_channels
-        self.load()
+        self.model = self.load()
 
     def load(self):
         input_parent = Input(shape=(None, None, self.num_channels), name='parent')
         input_template = Input(shape=(None, None, self.num_channels), name='template')
-        input = Concatenate(axis=-1)([input_parent, input_template])
+        input = Concatenate(axis=-1)(input_parent, input_template)
         x = Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding='same')(input)
         x = BatchNormalization()(x)
         x = Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding='same')(x)
@@ -36,17 +35,15 @@ class FCN:
 
 
 class IndicatorNN:
-    def __init__(self, num_channels):
-        self.model = None
+    def __init__(self, num_channels=1024):
         self.num_channels = num_channels
-        self.load()
+        self.model = self.load()
 
     def load(self):
-        input_parent = Input(shape=(None, None, None), name='parent')
-        input_template = Input(shape=(None, None, None), name='template')
-        g_inp = GlobalAveragePooling2D()(input_parent)
-        g_tmp = GlobalAveragePooling2D()(input_template)
-        x = Dense(units=32, activation='relu')([g_inp, g_tmp])
+        input_parent = Input(shape=(None, None, self.num_channels), name='parent')
+        input_template = Input(shape=(None, None, self.num_channels), name='template')
+        input = Concatenate(axis=-1)([input_parent, input_template])
+        x = Dense(units=32, activation='relu')(input)
         x = BatchNormalization()(x)
         x = Dense(units=16, activation='relu')(x)
         x = BatchNormalization()(x)
@@ -56,7 +53,7 @@ class IndicatorNN:
         x = BatchNormalization()(x)
         x = Dense(units=2, activation='relu')(x)
         x = BatchNormalization()(x)
-        matched_template = Dense(units=1, activation='sigmoid', padding='same')(x)
+        matched_template = Dense(units=1, activation='sigmoid')(x)
         sgd = SGD(lr=0.00001, momentum=0.9)
         model = Model(inputs=[input_parent, input_template], outputs=matched_template)
         model.compile(loss='binary_crossentropy', optimizer=sgd)

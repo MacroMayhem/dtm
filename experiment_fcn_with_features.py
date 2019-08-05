@@ -5,25 +5,26 @@ from utils.small_fcns import IndicatorNN
 from PIL import Image
 import numpy as np
 from keras.datasets import cifar100
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 from cifarGenerator import CifarFeatureGenerator
 import itertools
 
-train_generator = CifarFeatureGenerator(mode='train')
-val_generator = CifarFeatureGenerator(mode='test')
+train_generator = CifarFeatureGenerator(mode='train', generation_stage='conv_pw_13_relu')
+val_generator = CifarFeatureGenerator(mode='test', generation_stage='conv_pw_13_relu')
+print(train_generator.model.summary())
 
 try:
-    fcn = keras.models.load_model('feat_cifar_model.h5')
+    inNN = keras.models.load_model('feat_cifar_model.h5')
 except:
-    fcn = IndicatorNN(num_channels=3).load()
+    inNN = IndicatorNN()
 
 save_callback = keras.callbacks.ModelCheckpoint('feat_cifar_model.h5', monitor='loss', verbose=1, save_best_only=True, mode='min')
 tb_callback = keras.callbacks.TensorBoard(log_dir='./logs/', histogram_freq=0, write_graph=True, write_images=False)
-history = fcn.fit_generator(generator=train_generator, validation_data=val_generator, epochs=2, callbacks=[save_callback, tb_callback])
+history = inNN.model.fit_generator(generator=train_generator, validation_data=val_generator, epochs=2, callbacks=[save_callback, tb_callback], workers=0)
 
 
 fcn = keras.models.load_model('cifar_model.h5')
-val_generator = CifarGenerator(mode='test')
+val_generator = CifarFeatureGenerator(mode='test')
 predictions = fcn.predict_generator(val_generator)
 
 tp = 0
@@ -88,11 +89,11 @@ for r in range(row_steps):
         y_pred = fcn.predict([cropped_parent_img, template_img])
         print(y_pred.shape)
         plot_parent_crop = parent.crop((lx, ly, rx, ry))
-        plt.figure(1)
-        plt.subplot(311)
-        plt.imshow(plot_parent_crop)
-        plt.subplot(312)
-        plt.imshow(template)
-        plt.subplot(313)
-        plt.imshow(y_pred[0].reshape([16, 16]), cmap='gray', vmin=0, vmax=1)
-        plt.show()
+        # plt.figure(1)
+        # plt.subplot(311)
+        # plt.imshow(plot_parent_crop)
+        # plt.subplot(312)
+        # plt.imshow(template)
+        # plt.subplot(313)
+        # plt.imshow(y_pred[0].reshape([16, 16]), cmap='gray', vmin=0, vmax=1)
+        # plt.show()

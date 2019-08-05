@@ -8,6 +8,7 @@ from keras.layers import Input
 from keras.models import Model
 from keras import backend as K
 from utils.utils import bb_intersection_over_union
+import cv2
 np.random.seed(0)
 
 class CifarGenerator(keras.utils.Sequence):
@@ -69,10 +70,9 @@ class CifarGenerator(keras.utils.Sequence):
 
 
 def get_pretrained_model(num_channels=3):
-    mv2 = keras.applications.mobilenet.MobileNet(alpha=1.0, include_top=False, weights='imagenet', pooling=None)
-    model = Model(input=Input(shape=(None, None, num_channels)), output=mv2.output)
-    print(model.summary())
-    return model
+    mv2 = keras.applications.mobilenet.MobileNet(alpha=1.0, input_tensor=Input(shape=(None, None, num_channels)),
+                                                 include_top=False, weights='imagenet', pooling=None)
+    return mv2
 
 
 def getLayerIndexByName(model, layername):
@@ -82,11 +82,11 @@ def getLayerIndexByName(model, layername):
 
 
 def model_output(model, layer_name, inp):
-    output = (model.layers[getLayerIndexByName(model, layer_name)]).output
-    functor = K.function([model.input, K.learning_phase()], output)
-    l_out = functor(inp, 0)
-    print(l_out)
-    return l_out
+    intermediate_layer_model = Model(inputs=model.input,
+                                     outputs=model.get_layer(layer_name).output)
+    org_shape = inp.shape
+    intermediate_output = intermediate_layer_model.predict(x=np.reshape(inp, newshape=(-1, org_shape[0], org_shape[1], org_shape[2])))
+    return intermediate_output
 
 
 class CifarFeatureGenerator(keras.utils.Sequence):
@@ -101,8 +101,9 @@ class CifarFeatureGenerator(keras.utils.Sequence):
     def __len__(self):
         return int(self.num_samples/self.batch_size)
 
-    def __init__(self, mode='train', batch_size=1, model=None, generation_stage='output'):
-        self.model = model
+    def __init__(self, mode='train', batch_size=1, generation_stage='output'):
+        self.model = get_pretrained_model()
+        self.reduction_factor = 32
         self.generation_stage = generation_stage
         self.channels = self.model.output.shape[-1]
         self.batch_size = batch_size
@@ -116,18 +117,18 @@ class CifarFeatureGenerator(keras.utils.Sequence):
         self.data = data.astype('float32')
         self.num_samples = data.shape[0]
 
-    def generate_labels(self, data, index):
+    def generate_labels(self, data):
+        org_sample_shape = data.shape
+        res_data = cv2.resize(data, (3*org_sample_shape[0], 3*org_sample_shape[1]), interpolation=cv2.INTER_CUBIC)
+        sample_shape = res_data.shape
+        row_size = np.random.choice([32, 64])
+        col_size = np.random.choice([32, 64])
+        r_row = np.random.choice(sample_shape[0]-row_size+1)
+        r_col = np.random.choice(sample_shape[1]-col_size+1)
 
-        sample_shape = data.shape
+        template = res_data[r_row:r_row+row_size, r_col:r_col+col_size, :]
 
-        row_size = np.random.choice([16, 32])
-        col_size = np.random.choice([16, 32])
-        r_row = np.random.choice(sample_shape[0]-row_size)
-        r_col = np.random.choice(sample_shape[0]-col_size)
-
-        template = data[r_row:r_row+row_size, r_col:r_col+col_size, :]
-
-        p_f_out = model_output(self.model, self.generation_stage, data)
+        p_f_out = model_output(self.model, self.generation_stage, res_data)
         p_f_shape = p_f_out.shape
 
         t_f_out = model_output(self.model, self.generation_stage, template)
@@ -137,12 +138,16 @@ class CifarFeatureGenerator(keras.utils.Sequence):
 
         shape_diff = [i-j for i, j in zip(p_f_shape, t_f_shape)]
 
-        gt_row = np.random.choice(shape_diff[0])
-        gt_col = np.random.choice(shape_diff[1])
+        gt_row = np.random.choice(shape_diff[1])
+        gt_col = np.random.choice(shape_diff[2])
 
-        mathcing_parent = p_f_out[gt_row:gt_row+t_f_shape[0], gt_col:gt_col+t_f_shape[1], :]
+        matching_parent = p_f_out[:, gt_row:gt_row+t_f_shape[1], gt_col:gt_col+t_f_shape[2], :]
 
-        approx_org_row = reduction_factor/2 +
-        iou = bb_intersection_over_union(())
-
-        return [ps, ts], ys
+        approx_gt_positions = (self.reduction_factor*gt_col, self.reduction_factor*gt_row,
+                          self.reduction_factor*(gt_col+t_f_shape[2]), self.reduction_factor*(gt_row+t_f_shape[0]))
+        iou = bb_intersection_over_union(approx_gt_positions, (r_col, r_row, r_col+col_size, r_row+row_size))
+        if iou > 0.25:
+            ys[0, ] = 1
+        else:
+            ys[0, ] = 0
+        return [matching_parent, t_f_out], ys
